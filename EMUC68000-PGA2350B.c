@@ -38,16 +38,26 @@
 #define UDS_MASK (1u << (PIN_UDS - 32u))
 #define RW_MASK  (1u << (PIN_RW - 32u))
 #define AS_MASK  (1u << (PIN_AS - 32u))
+#define DTACK_MASK (1u << (PIN_DTACK - 32u))
 #define CTRL_MASK (LDS_MASK | UDS_MASK | RW_MASK | AS_MASK)
-#define DTACK_MASK (1u << PIN_DTACK -32u)
+#define DS_MASK  (LDS_MASK | UDS_MASK)
 
 #define DATA_MASK 0xFFFFu
 
-#define ACIA_BASE 0xE000u
+// #define ACIA_BASE 0x00E000u
+#define ACIA_BASE 0x80E000u
 #define ACIAD     ACIA_BASE
 #define ACIAC     (ACIA_BASE + 1u)
 
-#define MEMORY_SIZE 65536u
+// #define MEMORY_SIZE 65536u
+// #define MEMADRS_MASK 0xFFFFu
+
+// #define MEMORY_SIZE 131072u 262,144
+// #define MEMADRS_MASK 0x1FFFFu
+
+#define MEMORY_SIZE 262144u     // 256KByte
+#define MEMADRS_MASK 0x3FFFFu
+
 #define DUMP_MAX    500
 #define MC68K_CLK   6000000u
 #define CLK_BOOT_HZ 100000u
@@ -88,27 +98,53 @@ static const uint8_t test2[] = {
 
 // Hello MC68008 World (リセットベクタ + putc/puts)
 static const uint8_t test3[] = {
-    0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x08, 0x41, 0xFA, 0x00, 0x2C, 0x61, 0x00, 0x00, 0x1C, // 0x0000
-    0x60, 0xFE, 0x48, 0x40, 0x10, 0x39, 0x00, 0x00, 0xE0, 0x01, 0xC0, 0x3C, 0x00, 0x02, 0x67, 0xF4, // 0x0010
-    0x48, 0x40, 0x13, 0xC0, 0x00, 0x00, 0xE0, 0x00, 0x4E, 0x75, 0x10, 0x18, 0x67, 0x00, 0x00, 0x06, // 0x0020
-    0x61, 0xE0, 0x60, 0xF6, 0x4E, 0x75, 0x0D, 0x0A, 0x20, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x4D, // 0x0030
-    0x43, 0x36, 0x38, 0x30, 0x30, 0x38, 0x20, 0x57, 0x6F, 0x72, 0x6C, 0x64, 0x21, 0x0D, 0x0A, 0x0D, // 0x0040
-    0x0A, 0x00                                                                                      // 0x0050
+    // 0x0000: リセットベクトル領域
+    0x00, 0x00, 0xA0, 0x00,                         // 0x0000: 初期SSP ($0000A000)
+    0x00, 0x00, 0x00, 0x08,                         // 0x0004: 初期PC ($00000008)
+    
+    // 0x0008: メインプログラム領域
+    0x41, 0xFA, 0x00, 0x2C,                         // 0x0008: LEA MSG(PC), A0  (PC+$002C = 0x0036)
+    0x61, 0x00, 0x00, 0x1C,                         // 0x000C: BSR.W PUTS       (PC+$001C = 0x002A)
+    0x60, 0xFE,                                     // 0x0010: BRA.S *          (無限ループ)
+    
+    // 0x0012: 1文字出力サブルーチン (PUTCHAR)
+    0x48, 0x40,                                     // 0x0012: MOVEM.L D0, -(SP)
+    0x10, 0x39, 0x00, 0x80, 0xE0, 0x01,             // 0x0014: MOVE.B $80E001, D0 (ステータスレジスタ)
+    0xC0, 0x3C, 0x00, 0x02,                         // 0x001A: ANDI.B #$02, D0  (TDREチェック)
+    0x67, 0xF4,                                     // 0x0020: BEQ.S WAIT_TX    (-12バイト = 0x0014)
+    0x48, 0x40,                                     // 0x0022: MOVEM.L (SP)+, D0
+    0x13, 0xC0, 0x00, 0x80, 0xE0, 0x00,             // 0x0024: MOVE.B D0, $80E000 (データ送信)
+    0x4E, 0x75,                                     // 0x002A: RTS
+    
+    // 0x002C: 文字列出力サブルーチン (PUTS)
+    0x10, 0x18,                                     // 0x002C: MOVE.B (A0)+, D0
+    0x67, 0x00, 0x00, 0x06,                         // 0x002E: BEQ.W PUTS_END   (PC+$0006 = 0x0036)
+    0x61, 0xE0,                                     // 0x0032: BSR.S PUTCHAR    (-32バイト = 0x0012)
+    0x60, 0xF6,                                     // 0x0034: BRA.S PUTS       (-10バイト = 0x002C)
+    0x4E, 0x75,                                     // 0x0036: RTS
+    
+    // 0x0038: 文字列データ領域 (MSG)
+    0x0D, 0x0A,                                     // 0x0038: CR, LF
+    0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x4D, 0x43, // 0x003A: "Hello MC"
+    0x36, 0x38, 0x30, 0x30, 0x38, 0x20, 0x57, 0x6F, // 0x0042: "68008 Wo"
+    0x72, 0x6C, 0x64, 0x21,                         // 0x004A: "rld!"
+    0x0D, 0x0A, 0x0D, 0x0A,                         // 0x004E: CR, LF, CR, LF
+    0x00                                            // 0x0052: ヌル終端文字
 };
 
-// ACIA ループバック。$E001 bit0(RDRF) を待って $E000 を読み、
-// bit1(TDRE) を待って同じバイトを $E000 へ書く。
+// ACIA ループバック。$80E001 bit0(RDRF) を待って $80E000 を読み、
+// bit1(TDRE) を待って同じバイトを $80E000 へ書く。
 static const uint8_t test4[] = {
     0x00, 0x00, 0xA0, 0x00,              // 0x0000: 初期SSP 0x0000A000
     0x00, 0x00, 0x00, 0x08,              // 0x0004: 初期PC  0x00000008
-    0x10, 0x39, 0x00, 0x00, 0xE0, 0x01,  // 0x0008: MOVE.B $E001, D0
+    0x10, 0x39, 0x00, 0x80, 0xE0, 0x01,  // 0x0008: MOVE.B $80E001, D0
     0x02, 0x00, 0x00, 0x01,              // 0x000E: ANDI.B #1, D0
-    0x67, 0xF4,                          // 0x0012: BEQ.S  $0008
-    0x10, 0x39, 0x00, 0x00, 0xE0, 0x00,  // 0x0014: MOVE.B $E000, D0
-    0x12, 0x39, 0x00, 0x00, 0xE0, 0x01,  // 0x001A: MOVE.B $E001, D1
+    0x67, 0xF4,                          // 0x0012: BEQ.S  $800008
+    0x10, 0x39, 0x00, 0x80, 0xE0, 0x00,  // 0x0014: MOVE.B $80E000, D0
+    0x12, 0x39, 0x00, 0x80, 0xE0, 0x01,  // 0x001A: MOVE.B $80E001, D1
     0x02, 0x01, 0x00, 0x02,              // 0x0020: ANDI.B #2, D1
     0x67, 0xF4,                          // 0x0024: BEQ.S  $001A
-    0x13, 0xC0, 0x00, 0x00, 0xE0, 0x00,  // 0x0026: MOVE.B D0, $E000
+    0x13, 0xC0, 0x00, 0x80, 0xE0, 0x00,  // 0x0026: MOVE.B D0, $80E000
     0x60, 0xDA                           // 0x002C: BRA.S  $0008
 };
 
@@ -166,6 +202,12 @@ static void pin_input_pullup(uint pin) {
 static void pin_output_low(uint pin) {
     gpio_init(pin);
     gpio_put(pin, 0);
+    gpio_set_dir(pin, GPIO_OUT);
+}
+
+static void pin_output_high(uint pin) {
+    gpio_init(pin);
+    gpio_put(pin, 1);
     gpio_set_dir(pin, GPIO_OUT);
 }
 
@@ -280,9 +322,11 @@ void __time_critical_func(bus_emu(void)) {
             uint32_t lds = high & LDS_MASK;
             if ((uds == 0) || (lds == 0)) {
                 uint32_t adrs = bus_address(high, low);
-                uint16_t ad = (uint16_t)adrs; // 64KBメモリー領域は下位16bitでミラー
+                // uint16_t ad = (uint16_t)adrs; // 64KBメモリー領域は下位16bitでミラー
+                uint32_t ad = (adrs & MEMADRS_MASK); // 256KBメモリー領域は下位18bitでミラー
                 uint32_t data = low & DATA_MASK;
                 if (adrs != ACIA_BASE) {  // I/O は全アドレスで判定
+                // if (ad != ACIA_BASE) {  // I/O 16bit アドレスで判定
                     if (rw) {           //  READ メモリー
                         if (uds == 0) {
                             data = (data & 0x00FFu) | ((uint32_t)memory[ad] << 8);
@@ -459,6 +503,8 @@ int main(void) {
     }
 
     printf("EMUC68000-PGA2350B Rev0.0\n");
+    printf("ACIAD: %06X, ACIAC: %06X\n", ACIAD, ACIAC);
+    printf("MEMORY: %d Byte\n", MEMORY_SIZE);
     printf("Start..\n");
     size_t test_len = 0;
     const char *test_name = "test3";
