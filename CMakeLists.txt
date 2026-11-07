@@ -41,7 +41,7 @@ pico_set_program_name(EMUC68000-PGA2350B "EMUC68000-PGA2350B")
 pico_set_program_version(EMUC68000-PGA2350B "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-# UART は D0/D1 (GPIO0/1) とぶつかるので使わない
+# UART is disabled because it conflicts with D0/D1 (GPIO0/1).
 pico_enable_stdio_uart(EMUC68000-PGA2350B 0)
 pico_enable_stdio_usb(EMUC68000-PGA2350B 1)
 
