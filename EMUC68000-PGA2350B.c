@@ -24,6 +24,7 @@
 #include "pico/multicore.h"
 #include "tusb.h" // TinyUSB
 #include "ehbasic.h"  // EhBASIC program image
+#include "msbasic68k.h"  // MS-BASIC 68K program image (dual boot)
 
 
 #define PIN_LDS   40u
@@ -62,6 +63,12 @@
 #define MC68K_CLK   6000000u
 #define CLK_BOOT_HZ 100000u
 
+// デュアルブート: ブートメニューの待ち時間。
+// メニューで制限時間内に 'M' が押されなければ従来通り EhBASIC を起動する。
+// MS-BASIC 68K のイメージは自前のリセットベクタを持つ $0 配置なので、
+// 選択時は 0 番地へ置くだけでよい。
+#define BOOT_MENU_WAIT_MS 3000u
+
 // 0 番地に載せるイメージ。1=test1, 2=test2, 3=test3, 4=test4
 #ifndef TEST_SELECT
 #define TEST_SELECT 5
@@ -79,7 +86,7 @@ static int di;
 // SSP=0, PC=0。0x0008 で JMP $0008 を繰り返す
 static const uint8_t test1[] = {
     0x00, 0x00, 0x00, 0x00,  // SP 0x0000
-    0x00, 0x00, 0x00, 0x00,  // PC 0x0008
+    0x00, 0x00, 0x00, 0x00,  // PC 0x0000
     0x4E, 0xF8, 0x00, 0x08   // 0008: JMP ($0008).W
 };
 
@@ -139,7 +146,7 @@ static const uint8_t test4[] = {
     0x00, 0x00, 0x00, 0x08,              // 0x0004: 初期PC  0x00000008
     0x10, 0x39, 0x00, 0x80, 0xE0, 0x01,  // 0x0008: MOVE.B $80E001, D0
     0x02, 0x00, 0x00, 0x01,              // 0x000E: ANDI.B #1, D0
-    0x67, 0xF4,                          // 0x0012: BEQ.S  $800008
+    0x67, 0xF4,                          // 0x0012: BEQ.S  $000008
     0x10, 0x39, 0x00, 0x80, 0xE0, 0x00,  // 0x0014: MOVE.B $80E000, D0
     0x12, 0x39, 0x00, 0x80, 0xE0, 0x01,  // 0x001A: MOVE.B $80E001, D1
     0x02, 0x01, 0x00, 0x02,              // 0x0020: ANDI.B #2, D1
@@ -476,6 +483,26 @@ static void dump_trace(void) {
 }
 
 
+// ブートメニュー。USB CDC から BOOT_MENU_WAIT_MS の間だけキーを待つ。
+// 'M'/'m' なら true (MS-BASIC)。'E'/'e'・その他のキー・タイムアウトは
+// false (既定の EhBASIC)。最初に押されたキーで即決する。
+static bool boot_menu_msbasic_selected(void) {
+    printf("Boot menu: [M] MS-BASIC 68K  /  [E] EhBASIC (default)\n");
+    printf("Press M within %us for MS-BASIC: ", BOOT_MENU_WAIT_MS / 1000u);
+    stdio_flush();
+    absolute_time_t deadline = make_timeout_time_ms(BOOT_MENU_WAIT_MS);
+    while (!time_reached(deadline)) {
+        int ch = getchar_timeout_us(0);
+        if (ch >= 0) {
+            printf("%c\n", ch);
+            return (ch == 'M' || ch == 'm');
+        }
+        sleep_ms(10);
+    }
+    printf("(timeout)\n");
+    return false;
+}
+
 int main(void) {
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     sleep_ms(10);
@@ -506,11 +533,20 @@ int main(void) {
     printf("ACIAD: %06X, ACIAC: %06X\n", ACIAD, ACIAC);
     printf("MEMORY: %d Byte\n", MEMORY_SIZE);
     printf("Start..\n");
-    size_t test_len = 0;
-    const char *test_name = "test3";
-    const uint8_t *test_image = selected_test(&test_len, &test_name);
-    printf("Load %s\n", test_name);
-    load_to_memory(test_image, test_len, 0x0000);
+    if (boot_menu_msbasic_selected()) {
+        // MS-BASIC 68K: $0 配置のイメージが先頭にリセットベクタ
+        // (SSP=$00030000, PC=$00000194) を持つので、0 番地へ置くだけ。
+        // 以後の RESET-ON / Core1 起動 / クロック設定 / uart_task は
+        // EhBASIC 経路と完全共通。
+        printf("Load MS-BASIC 68K\n");
+        load_to_memory(MSBASIC68K, (size_t)msbasic68k_size, 0x0000);
+    } else {
+        size_t test_len = 0;
+        const char *test_name = "test3";
+        const uint8_t *test_image = selected_test(&test_len, &test_name);
+        printf("Load %s\n", test_name);
+        load_to_memory(test_image, test_len, 0x0000);
+    }
 
     printf("RESET-ON\n");
     sleep_ms(1);

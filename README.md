@@ -44,6 +44,14 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
+## デュアルブート（MS-BASIC 68K）
+
+起動直後にブートメニューが 3 秒間表示されます。`M` キーで
+MS-BASIC 68K（Microsoft BASIC の MC68000 移植、拡張版）を、
+それ以外またはタイムアウトで従来の EhBASIC を起動します。
+移植の詳細は [msbasic68k/](./msbasic68k/) を参照してください
+（原典 microsoft/BASIC-M6502 は MIT ライセンス）。
+
 ## 無保証
 
 本プロジェクトは現状有姿で提供され、明示・黙示を問わず、動作、正確性、安全性、特定目的への適合性を保証しません。
