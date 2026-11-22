@@ -38,12 +38,12 @@ $00E6	00 00 E0 00	 ->  80 00 E0 00  ( ACIAD -> $80E000 )
 
 ## 画像
 
-![img3](./img/img3.jpg)
 ![img2](./img/img2.jpg)
 ![PCB TOP](./img/EMUC68000-RP2350B-PGA_TOP.png)
 ![PCB BOTTOM](./img/EMUC68000-RP2350B-PGA_BOTTOM.png)
 ![回路図](./img/sch1.png)
-![動作例](./img/img1.png)
+![動作例1](./img/img3.png)
+![動作例2](./img/img1.png)
 
 ## ビルド
 
