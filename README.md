@@ -3,6 +3,15 @@
 MC68000 を Pimoroni PGA2350 で動作させるための暫定プロジェクトです。
 動作確認や仕様が不十分な場合があります。
 
+
+## デュアルブート（MS-BASIC 68K, 2026/11/22）
+
+起動直後にブートメニューが 3 秒間表示されます。`M` キーで
+MS-BASIC 68K（Microsoft BASIC の MC68000 移植、拡張版）を、
+それ以外またはタイムアウトで従来の EhBASIC を起動します。
+移植の詳細は [msbasic68k/](./msbasic68k/) を参照してください
+（原典 microsoft/BASIC-M6502 は MIT ライセンス）。
+
 ### MC68000 RAM 256KB版 (2026/11/5)
 - MC68000 メモリエリア 8KByte -> 256KByte へ拡大
 - ACIAアドレス E000 -> 80E000 へ変更
@@ -29,6 +38,7 @@ $00E6	00 00 E0 00	 ->  80 00 E0 00  ( ACIAD -> $80E000 )
 
 ## 画像
 
+![img3](./img/img3.jpg)
 ![img2](./img/img2.jpg)
 ![PCB TOP](./img/EMUC68000-RP2350B-PGA_TOP.png)
 ![PCB BOTTOM](./img/EMUC68000-RP2350B-PGA_BOTTOM.png)
@@ -43,14 +53,6 @@ Pico SDK と CMake、Ninja が利用できる環境で、リポジトリのル�
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
-
-## デュアルブート（MS-BASIC 68K）
-
-起動直後にブートメニューが 3 秒間表示されます。`M` キーで
-MS-BASIC 68K（Microsoft BASIC の MC68000 移植、拡張版）を、
-それ以外またはタイムアウトで従来の EhBASIC を起動します。
-移植の詳細は [msbasic68k/](./msbasic68k/) を参照してください
-（原典 microsoft/BASIC-M6502 は MIT ライセンス）。
 
 ## 無保証
 
