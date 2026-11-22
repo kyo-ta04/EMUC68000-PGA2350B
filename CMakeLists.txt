@@ -35,7 +35,7 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(EMUC68000-PGA2350B EMUC68000-PGA2350B.c ehbasic.c)
+add_executable(EMUC68000-PGA2350B EMUC68000-PGA2350B.c ehbasic.c msbasic68k.c)
 
 pico_set_program_name(EMUC68000-PGA2350B "EMUC68000-PGA2350B")
 pico_set_program_version(EMUC68000-PGA2350B "0.1")
