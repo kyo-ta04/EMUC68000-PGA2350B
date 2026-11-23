@@ -1,5 +1,3 @@
-!msbasic68k/**/*.bin
-
 # Build output
 build*/
 .cache/*
@@ -15,3 +13,5 @@ build*/
 *.hex
 *.map
 *.dis
+
+!msbasic68k/**/*.bin
