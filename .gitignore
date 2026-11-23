@@ -1,3 +1,5 @@
+!msbasic68k/**/*.bin
+
 # Build output
 build*/
 .cache/*

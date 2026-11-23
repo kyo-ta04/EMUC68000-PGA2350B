@@ -5,10 +5,11 @@ LEEK/LOKE, INSTR and ELSE, in MS Extended BASIC form.
 
 Gates, in order:
   1. build.py builds all four flavours; the FAITHFUL flavours
-     keep their byte-identity gate inside build.py (sim 15496
-     bytes / BSD sum 23356, hw 15504 / 58202 -- the reference
-     values after the 2026-11-22 FCOMP/PERFORM2 fidelity
-     fixes; the post-M8 pin was 15492/32410 and 15500/17566).
+     keep their byte-identity gate inside build.py (sim 15502
+     bytes / BSD sum 21454, hw 15510 / 7283 -- the reference
+     values after the 2026-11-22 comma-NEXT fix; the previous
+     pin, after the FCOMP/PERFORM2 fidelity fixes, was
+     15496/23356 and 15504/58202).
      The EXT sizes and sums are recorded and printed.
   2. Branch checkers on both EXT listings ("0 bad").
   3. EXT-SIM spec session (this file's SESSION): byte-exact
@@ -256,6 +257,33 @@ SESSION = [
     # ---- ELSE: direct mode ----
     ("C", 'IF 0 THEN PRINT 1 ELSE PRINT 2', "", num(2)),
     ("C", 'IF 1 THEN PRINT 1 ELSE PRINT 2', "", num(1)),
+    # ---- comma NEXT (2026-11-22 fix, backported from the
+    # redesign tree's R2-M4 Part 0): NX_EXIT's LEA reset SP
+    # past the popped frame and abandoned the dispatch return
+    # address, so a comma-named loop that CONTINUED returned
+    # into frame bytes (?NF).  A NEXT list closes loops
+    # innermost-first; a variable with no live frame is ?NF.
+    ("L", "10 S=0: FOR I=1 TO 3: FOR J=1 TO 3: S=S+1: NEXT J,I: PRINT S",
+     "", None),
+    ("C", "RUN", "", num(9)),
+    ("C", "NEW", "", "\r\nREADY.\r\n"),
+    ("L", "10 S=0: FOR I=1 TO 2: FOR J=1 TO 4: S=S+1: NEXT J,I: PRINT S",
+     "", None),
+    ("C", "RUN", "", num(8)),
+    ("C", "NEW", "", "\r\nREADY.\r\n"),
+    ("L", "10 S=0: FOR I=1 TO 2: FOR J=1 TO 2: FOR K=1 TO 2: "
+          "S=S+1: NEXT K,J,I: PRINT S", "", None),
+    ("C", "RUN", "", num(8)),
+    ("C", "NEW", "", "\r\nREADY.\r\n"),
+    ("L", "10 FOR I=1 TO 1: NEXT I,J", "", None),
+    ("C", "RUN", "", "?NF ERROR IN  10\r\n\r\nREADY.\r\n"),
+    ("C", "NEW", "", "\r\nREADY.\r\n"),
+    ("C", "S=0: FOR I=1 TO 3: FOR J=1 TO 3: S=S+1: NEXT J,I: PRINT S",
+     "", num(9)),               # comma NEXT in direct mode
+    ("L", "10 S=0: FOR I=1 TO 2: FOR J=1 TO 2: S=S+1: "
+          "NEXT J: NEXT: PRINT S", "", None),
+    ("C", "RUN", "", num(4)),   # single + bare NEXT unaffected
+    ("C", "NEW", "", "\r\nREADY.\r\n"),
     # ---- CTRL-C break still works (run_break session A) ----
     ("C", "NEW", "", None),
     ("L", "10 GET A$", "", None),
@@ -369,8 +397,8 @@ def main() -> int:
                        capture_output=True, text=True)
     print(r.stdout.strip())
     check("build.py (all four flavours) exit 0", r.returncode == 0)
-    for name, want in (("msbasic68k.bin", (15496, 23356)),
-                       ("msbasic68k-hw.bin", (15504, 58202))):
+    for name, want in (("msbasic68k.bin", (15502, 21454)),
+                       ("msbasic68k-hw.bin", (15510, 7283))):
         data = (HERE / name).read_bytes()
         check(f"faithful {name} size/BSD sum",
               (len(data), bsd_sum(data)) == want,
@@ -484,8 +512,8 @@ def main() -> int:
                             "sim"], capture_output=True, text=True)
         data = (HERE / "msbasic68k.bin").read_bytes()
         check("faithful build restored after the swap",
-              r.returncode == 0 and len(data) == 15496
-              and bsd_sum(data) == 23356,
+              r.returncode == 0 and len(data) == 15502
+              and bsd_sum(data) == 21454,
               f"{len(data)} bytes, sum {bsd_sum(data)}")
 
     n_fail = sum(1 for _, ok in checks if not ok)

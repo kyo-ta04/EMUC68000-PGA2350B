@@ -7,11 +7,17 @@ Microsoft が 2025 年に MIT ライセンスで公開した 6502 版 BASIC の
 （受け入れ試験は Mandelbrot 描画プログラム ASCIIART.BAS）。
 
 ファームウェア本体からはブートメニューで選択して起動できます
-（起動後 3 秒以内に `M` キー。既定は EhBASIC）。統合の詳細は
-`firmware/dualboot-integration.md` を参照してください。
+（起動後 3 秒以内にキー入力。`M` = 本ページの MS-BASIC 68K、
+`R` = 再設計版 R2（`redesign/`）、それ以外またはタイムアウトで
+EhBASIC）。統合の詳細は `firmware/dualboot-integration.md` を
+参照してください。
 2026-11-22 に実機で確認済み：メニュー選択、61440 BYTES FREE、
 ASCIIART の出力がゴールデンとバイト一致（約227 秒 @6MHz）、
 CTRL-C ブレーク、無入力タイムアウトでの EhBASIC 起動。
+2026-11-23 にトリプルブート化し実機で確認済み：`M` で
+61440 BYTES FREE とコンマ NEXT のスモークテスト
+（`NEXT J,I`）合格、`R` で 129024 BYTES FREE、ASCIIART が
+148 秒 @6MHz（ホスト sim の予測 147.2 秒と一致）。
 
 ## 拡張（EXT1）
 
@@ -24,6 +30,15 @@ CTRL-C ブレーク、無入力タイムアウトでの EhBASIC 起動。
 
 仕様の根拠は `m7-ext1-results.md`。
 
+## 再設計 R2（`redesign/`）
+
+phase1 を土台に、32 ビット整数型（int32、二重表現）と
+32 ビットメモリモデル（A1）、高速化した文字列 GC（C1）を
+備えた再設計版です。ブートメニューの `R` キーで起動します。
+ASM.BAS ボスのフルランではホスト sim で EhBASIC を上回り
+ました（125.2G vs 157.5G サイクル）。詳細は
+`redesign/README.md`。
+
 ## フォルダ構成
 
 - `parts/` — アセンブリソース（パート分割、ビルドで連結）
@@ -34,7 +49,12 @@ CTRL-C ブレーク、無入力タイムアウトでの EhBASIC 起動。
   読み込むためのローダ（ファーム書き換えなしの導入経路）
 - `hw-ext-test-checklist.md` — 実機テスト手順
 - `m*-results.md` — 各マイルストーンの検証記録
-- `firmware/` — デュアルブート統合メモ、配列生成スクリプト、diff
+- `next-comma-fix-results.md` — コンマ NEXT 修正の記録
+  （phase1 へのバックポート）
+- `redesign/` — 再設計版 R2（ソース、ビルド、検証記録）
+- `golden/` — ASCIIART のゴールデン出力
+  （`redesign/` のスイートが参照）
+- `firmware/` — ブート統合メモ、配列生成スクリプト、diff
 
 ## ライセンス
 
@@ -52,3 +72,7 @@ CTRL-C ブレーク、無入力タイムアウトでの EhBASIC 起動。
   バグ 2 件（FCOMP の符号違いパス、PERFORM2 のマスク破壊）を
   修正しました。経緯はソース内コメントと本リポジトリ外の
   移植記録にあります。
+- コンマ NEXT（`NEXT J,I` のような複数変数 NEXT）が壊れて
+  いたのを 2026-11-22 に修正しました（再設計側で先に直した
+  もののバックポート）。経緯は `next-comma-fix-results.md`。
+  現在のイメージはすべて修正済みです。

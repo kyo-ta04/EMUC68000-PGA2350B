@@ -24,7 +24,8 @@
 #include "pico/multicore.h"
 #include "tusb.h" // TinyUSB
 #include "ehbasic.h"  // EhBASIC program image
-#include "msbasic68k.h"  // MS-BASIC 68K program image (dual boot)
+#include "msbasic68k-c.h"  // MS-BASIC 68K program image, -c banner (triple boot, 'M')
+#include "msbasic68k_rd-c.h"  // MS-BASIC 68K R2 (redesign) image, -c banner (triple boot, 'R')
 
 
 #define PIN_LDS   40u
@@ -63,10 +64,11 @@
 #define MC68K_CLK   6000000u
 #define CLK_BOOT_HZ 100000u
 
-// デュアルブート: ブートメニューの待ち時間。
-// メニューで制限時間内に 'M' が押されなければ従来通り EhBASIC を起動する。
-// MS-BASIC 68K のイメージは自前のリセットベクタを持つ $0 配置なので、
-// 選択時は 0 番地へ置くだけでよい。
+// トリプルブート: ブートメニューの待ち時間。
+// メニューで制限時間内に 'M' (MS-BASIC 68K, phase1) か 'R'
+// (MS-BASIC 68K R2, 再設計) が押されなければ従来通り EhBASIC を起動する。
+// MS-BASIC 68K のイメージはどちらも自前のリセットベクタを持つ $0 配置
+// なので、選択時は 0 番地へ置くだけでよい。
 #define BOOT_MENU_WAIT_MS 3000u
 
 // 0 番地に載せるイメージ。1=test1, 2=test2, 3=test3, 4=test4
@@ -452,8 +454,7 @@ void uart_task(void) {
 
 
 static void reset_off(void) {
-    printf("RESET-OFF\n");
-    printf("MC68K_CLK = %.3fkHz..\n", MC68K_CLK / 1000.0);
+    printf("RESET-OFF\n\n");
     clk_set_hz(MC68K_CLK);
     sleep_ms(1);
     gpio_put(PIN_RESET, 1);
@@ -484,23 +485,30 @@ static void dump_trace(void) {
 
 
 // ブートメニュー。USB CDC から BOOT_MENU_WAIT_MS の間だけキーを待つ。
-// 'M'/'m' なら true (MS-BASIC)。'E'/'e'・その他のキー・タイムアウトは
-// false (既定の EhBASIC)。最初に押されたキーで即決する。
-static bool boot_menu_msbasic_selected(void) {
-    printf("Boot menu: [M] MS-BASIC 68K  /  [E] EhBASIC (default)\n");
-    printf("Press M within %us for MS-BASIC: ", BOOT_MENU_WAIT_MS / 1000u);
+// 'M'/'m' = MS-BASIC 68K (phase1)、'R'/'r' = MS-BASIC 68K R2 (再設計)、
+// 'E'/'e'・その他のキー・タイムアウトは既定の EhBASIC。
+// 最初に押されたキーで即決し、選択文字 (大文字 'M' / 'R' / 'E') を返す。
+static char boot_menu_select(void) {
+    printf("Boot menu: [M] MS-BASIC 68K  /  [R] MS-BASIC 68K R2  /  [E] EhBASIC (default)\n");
+    printf("Press M or R within %us for MS-BASIC: ", BOOT_MENU_WAIT_MS / 1000u);
     stdio_flush();
     absolute_time_t deadline = make_timeout_time_ms(BOOT_MENU_WAIT_MS);
     while (!time_reached(deadline)) {
         int ch = getchar_timeout_us(0);
         if (ch >= 0) {
             printf("%c\n", ch);
-            return (ch == 'M' || ch == 'm');
+            if (ch == 'M' || ch == 'm') {
+                return 'M';
+            }
+            if (ch == 'R' || ch == 'r') {
+                return 'R';
+            }
+            return 'E';
         }
         sleep_ms(10);
     }
     printf("(timeout)\n");
-    return false;
+    return 'E';
 }
 
 int main(void) {
@@ -529,17 +537,23 @@ int main(void) {
         sleep_ms(10);
     }
 
-    printf("EMUC68000-PGA2350B Rev0.0\n");
+    printf("EMUC68000-PGA2350B Rev1.0\n");
     printf("ACIAD: %06X, ACIAC: %06X\n", ACIAD, ACIAC);
     printf("MEMORY: %d Byte\n", MEMORY_SIZE);
     printf("Start..\n");
-    if (boot_menu_msbasic_selected()) {
-        // MS-BASIC 68K: $0 配置のイメージが先頭にリセットベクタ
-        // (SSP=$00030000, PC=$00000194) を持つので、0 番地へ置くだけ。
-        // 以後の RESET-ON / Core1 起動 / クロック設定 / uart_task は
-        // EhBASIC 経路と完全共通。
+    char boot_sel = boot_menu_select();
+    if (boot_sel == 'M') {
+        // MS-BASIC 68K (phase1, EXT1): $0 配置のイメージが先頭に
+        // リセットベクタ (SSP=$00030000, PC=$000001AE) を持つので、
+        // 0 番地へ置くだけ。以後の RESET-ON / Core1 起動 /
+        // クロック設定 / uart_task は EhBASIC 経路と完全共通。
         printf("Load MS-BASIC 68K\n");
-        load_to_memory(MSBASIC68K, (size_t)msbasic68k_size, 0x0000);
+        load_to_memory(MSBASIC68K_C, (size_t)msbasic68k_c_size, 0x0000);
+    } else if (boot_sel == 'R') {
+        // MS-BASIC 68K R2 (再設計 R2+C1): 同じく $0 配置で、先頭に
+        // 自前のリセットベクタ (SSP=$00040000, PC=$000001B2) を持つ。
+        printf("Load MS-BASIC 68K R2\n");
+        load_to_memory(MSBASIC68K_RD_C, (size_t)msbasic68k_rd_c_size, 0x0000);
     } else {
         size_t test_len = 0;
         const char *test_name = "test3";
@@ -548,6 +562,7 @@ int main(void) {
         load_to_memory(test_image, test_len, 0x0000);
     }
 
+    printf("MC68K_CLK = %.3fkHz..\n", MC68K_CLK / 1000.0);
     printf("RESET-ON\n");
     sleep_ms(1);
     printf("ROMエミュレータ起動 - Core1\n");

@@ -3,6 +3,16 @@
 MC68000 を Pimoroni PGA2350 で動作させるための暫定プロジェクトです。
 動作確認や仕様が不十分な場合があります。
 
+## トリプルブート（MS-BASIC 68K R2, 2026/11/23）
+
+起動直後にブートメニューが 3 秒間表示されます。
+
+- `M` キー：MS-BASIC 68K（Microsoft BASIC の MC68000 移植、拡張版、61,440 BYTES FREE）
+- `R` キー：MS-BASIC 68K R2（再設計版。32 ビット整数型と 32 ビットメモリモデルを備え、129,024 BYTES FREE）
+- それ以外またはタイムアウト：従来の EhBASIC
+
+移植の詳細は [msbasic68k/](./msbasic68k/) を参照してください
+（原典 microsoft/BASIC-M6502 は MIT ライセンス）。
 
 ## デュアルブート（MS-BASIC 68K, 2026/11/22）
 
@@ -42,8 +52,9 @@ $00E6	00 00 E0 00	 ->  80 00 E0 00  ( ACIAD -> $80E000 )
 ![PCB TOP](./img/EMUC68000-RP2350B-PGA_TOP.png)
 ![PCB BOTTOM](./img/EMUC68000-RP2350B-PGA_BOTTOM.png)
 ![回路図](./img/sch1.png)
-![動作例1](./img/img3.png)
-![動作例2](./img/img1.png)
+![動作例1](./img/img4.png)
+![動作例2](./img/img3.png)
+![動作例3](./img/img1.png)
 
 ## ビルド
 

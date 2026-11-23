@@ -314,6 +314,18 @@ NX_EXIT MOVE.L  40(A2),FORSP    ; pop this frame (and any above)
         MOVEQ   #0,D5
         BSR     PTRGET
         MOVE.L  VARPNT,FORPNT
+        MOVE.L  NEXTRET,-(SP)  ; NEXT-fix (backport of the redesign
+                                ; tree's R2-M4 Part 0 fix): the LEA
+                                ; above reset SP past the frame,
+                                ; abandoning the dispatch return
+                                ; address the loop-back RTS pops (it
+                                ; sat just below the topmost frame).
+                                ; Re-stack the parked copy so a
+                                ; comma-named loop that CONTINUES
+                                ; returns correctly; if it exits
+                                ; instead, its NX_EXIT resets SP
+                                ; again and this copy is abandoned
+                                ; like the original.
         BRA     NX_GO
 NX_DONE MOVEA.L NEXTRET,A0      ; exit by jump through the parked
         JMP     (A0)            ; return address (SP was reset)
